@@ -1,0 +1,24 @@
+deepspeed --master_port=2333 train_t5.py \
+    --data_path data/mscoco/mscoco_t5large \
+    --output_dir output/mscoco \
+    --model_name t5-large \
+    --train_epoch 100 \
+    --learning_rate 1e-3 \
+    --train_batch_size 32 \
+    --code_book_size 1024 \
+    --code_book_num 1 \
+    --dropout_rate 0.2 \
+    --log_freq 1 \
+    --source_length 128 \
+    --target_length 8 \
+    --gen_len 10 \
+    --warmup_ratio 0.1 \
+    --eval_strategy epoch \
+    --save_strategy no \
+    --save_total_limit 1 \
+    --logging_steps 100 \
+    --deepseed_config config/t5_ds_config.json \
+    --gradient_accumulation_steps 4 \
+    --temperature 0.5 \
+    --add_embedding \
+    --bf16 \
