@@ -1,7 +1,7 @@
 deepspeed --master_port=23333 finetune_llama.py \
     --data_path data/flickr/flickr_codes_1024_llama \
     --output_dir output/flickr \
-    --model_name models/llama-2 \
+    --model_name meta-llama/Llama-2-7b-hf \
     --train_epoch 10 \
     --learning_rate 3e-4 \
     --train_batch_size 8 \

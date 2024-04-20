@@ -87,6 +87,7 @@ class RQVAE(nn.Module):
             loss_cap = F.mse_loss(output, cap, reduction='mean') if cap is not None else torch.tensor([0])
         elif self.text_loss_type == 'l1':
             loss_cap = F.l1_loss(output, cap, reduction='mean') if cap is not None else torch.tensor([0])
+        # for experiment
         elif self.text_loss_type == 'contrastive':
             if cap is not None:
                 eps = 1e-12

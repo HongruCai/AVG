@@ -12,19 +12,18 @@ from models.rqvae import RQVAE
 from trainer import  Trainer
 import wandb
 import os
-from utils import ensure_dir, set_color, get_local_time
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="RQ-VAE")
 
-    parser.add_argument('--version', type=str, default='rq-vae', help='version')
+    parser.add_argument('--version', type=str, default='rq-vae', help='version signature, to distinguish different experiments')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--epochs', type=int, default=2000, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=2048, help='batch size')
-    parser.add_argument('--num_workers', type=int, default=4, )
-    parser.add_argument('--eval_step', type=int, default=200, help='eval step')
-    parser.add_argument('--save_step', type=int, default=500, help='save step')
+    parser.add_argument('--num_workers', type=int, default=4, help='number of workers')
+    parser.add_argument('--eval_step', type=int, default=100, help='eval epoch')
+    parser.add_argument('--save_step', type=int, default=100, help='save epoch')
     parser.add_argument('--learner', type=str, default="AdamW", help='optimizer')
 
     parser.add_argument('--weight_decay', type=float, default=0, help='l2 regularization weight')
@@ -34,9 +33,9 @@ def parse_args():
     parser.add_argument("--kmeans_init", action='store_true', help="use kmeans_init or not")
     parser.add_argument("--kmeans_iters", type=int, default=100, help="max kmeans iters")
 
-    parser.add_argument("--device", type=str, default="cuda", help="gpu or cpu")
+    parser.add_argument("--device", type=str, default="cuda", help="gpu or cpu") # only support single gpu training
 
-    parser.add_argument('--num_emb_list', type=int, nargs='+', default=[1024], help='emb num of every rq')
+    parser.add_argument('--num_emb_list', type=int, nargs='+', default=[1024], help='size of embedding of every rq')
     parser.add_argument('--code_length', type=int, default=4, help='rq code length')
     parser.add_argument('--e_dim', type=int, default=768, help='rq codebook embedding size')
     parser.add_argument('--quant_loss_weight', type=float, default=1.0, help='rq quantion loss weight')
@@ -45,9 +44,9 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="flickr", help="dataset name")
     parser.add_argument("--ckpt_dir", type=str, default="./RQ-VAE/output/rqvae/", help="output directory for model")
     parser.add_argument("--use_cap", action='store_true', help="if use caption for reconstruction loss")
-    parser.add_argument("--use_pseudo", action='store_true', help="if use pseudo caption")
-    parser.add_argument("--text_loss_type", type=str, default="mse", help="text loss type")
-    parser.add_argument("--text_loss_pos", type=str, default="after", help="text loss position")
+    parser.add_argument("--use_pseudo", action='store_true', help="if use pseudo caption for training")
+    parser.add_argument("--text_loss_type", type=str, default="mse", help="text align loss type")
+    parser.add_argument("--text_loss_pos", type=str, default="after", help="text align loss position")
 
     return parser.parse_args()
 

@@ -40,6 +40,19 @@ def prefix_allowed_tokens_fn(candidate_trie):
     return prefix_allowed_tokens
 
 
+def llama_prefix_allowed_tokens_fn(candidate_trie):
+    def prefix_allowed_tokens(batch_id, sentence):
+        sentence = sentence.tolist()
+        # 13291 is the token id for vokens, so the function can return the correct allowed tokens
+        # you may need to change this value in your case
+        index = sentence.index(13291) 
+        sentence = sentence[index:]
+        trie_out = candidate_trie.get(sentence)
+        return trie_out
+
+    return prefix_allowed_tokens
+
+
 def load_codes(target_file):
     with  open(target_file, 'r', encoding='utf-8') as tgt_file:
         target_lines = tgt_file.readlines()
@@ -50,6 +63,40 @@ def load_codes(target_file):
     target_lines = res   
 
     return target_lines
+
+
+def load_prompt(source_file,target_file,sub_size=None):
+    target_lines = open(target_file, encoding='utf-8').read().splitlines()
+    source_lines = open(source_file, encoding='utf-8').read().splitlines()
+    
+    if sub_size is not None and sub_size < len(source_lines):
+        indeces = np.random.choice(len(source_lines), sub_size, replace=False)
+        source_lines = [source_lines[i] for i in indeces]
+        target_lines = [target_lines[i] for i in indeces]
+    
+    source = []
+    target = []
+    for i in range(len(source_lines)):
+        source_text = source_lines[i]
+        target_text = target_lines[i]
+        prefix_text = f"Below is an instruction that describes a task. Write a response that appropriately completes the request. ### Instruction:{source_text} ### Response:"
+        source.append(prefix_text)
+        target.append(target_text)
+    
+    return source, target
+
+
+def load_response(source_file,target_file):
+    target_lines = open(target_file, encoding='utf-8').read().splitlines()
+    source_lines = open(source_file, encoding='utf-8').read().splitlines()
+    
+    res = []
+    for i in range(len(source_lines)):
+        prefix_text = f"Response:{target_lines[i]}</s>"
+        if prefix_text not in res:
+            res.append(prefix_text)
+
+    return res
 
 
 class Trie(object):
@@ -384,10 +431,10 @@ class LTRTrainer(Trainer):
         logits = logits / self.temperature
 
         loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
-        #loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
-        ltr_loss = self.prefix_ltr_loss(model, inputs, logits, labels, self.temperature, self.margin)
+        tem_loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
+        ltr_loss = self.multi_ltr_loss(model, inputs, logits, labels)
         
-        loss = self.ltr_loss_factor * ltr_loss + outputs.loss
+        loss = self.ltr_loss_factor * ltr_loss + tem_loss
 
         return (loss, outputs) if return_outputs else loss
     

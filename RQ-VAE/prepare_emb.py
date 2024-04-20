@@ -9,7 +9,7 @@ import argparse
 import os
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Prepare CLIP embeddings")
+    parser = argparse.ArgumentParser(description="Prepare embeddings for RQ-VAE training")
 
     parser.add_argument('--root_dir', type=str, default='data/flickr/images/split', help='root directory of images')
     parser.add_argument('--caption_file', type=str, default='data/flickr/flickr_split_captions.json', help='caption file')
@@ -56,6 +56,7 @@ if __name__ == '__main__':
                                     save_path=args.save_path+'/'+split+'_emb',
                                     pseudo=False)
     
+    # generate pseudo query embeddings
     process_and_save_embeddings(root_dir=args.root_dir+'/'+'test'+'/', 
                                 caption=args.pseudo_caption_file, 
                                 clip_model=args.clip_model, 

@@ -5,13 +5,11 @@ import torch
 from time import time
 from torch import optim
 from tqdm import tqdm
-
-from utils import ensure_dir,set_color,get_local_time
 import os
 
 class Trainer(object):
 
-    def __init__(self, args, model, wandb,save_dir,logger):
+    def __init__(self, args, model, wandb, save_dir,logger):
         self.args = args
         self.model = model
         self.logger = logger
@@ -24,10 +22,7 @@ class Trainer(object):
         self.save_step = min(args.save_step, self.epochs)
         self.device = args.device
         self.device = torch.device(self.device)
-        self.ckpt_dir = args.ckpt_dir
-        saved_model_dir = get_local_time() if save_dir is None else save_dir
-        self.ckpt_dir = saved_model_dir 
-        ensure_dir(self.ckpt_dir)
+        self.ckpt_dir = save_dir
 
         self.best_loss = np.inf
         self.best_loss_ckpt = "best_loss_model.pth"
@@ -81,19 +76,17 @@ class Trainer(object):
         total_rq_loss = []
 
         for batch_idx, data in enumerate(train_data):
-            #data = data.to(self.device)
             
             img = data[0].to(self.device) if self.args.use_cap else data.to(self.device)
-            #print(img.shape)
             cap = data[1].to(self.device) if self.args.use_cap else None
-            #print(cap.shape)
+
             self.optimizer.zero_grad()
             out, rq_loss, indices, encoder_out = self.model(img)
             loss, loss_recon, loss_cap = self.model.compute_loss(out, encoder_out,rq_loss, xs=img,cap=cap)
             self._check_nan(loss)
             loss.backward()
             self.optimizer.step()
-            # iter_data.set_postfix_str("Loss: {:.4f}, RQ Loss: {:.4f}".format(loss.item(),rq_loss.item()))
+
             total_loss.append(loss.item())
             total_recon_loss.append(loss_recon.item())
             total_cap_loss.append(loss_cap.item())
@@ -101,11 +94,11 @@ class Trainer(object):
 
         return np.mean(total_loss),np.mean(total_recon_loss),np.mean(total_cap_loss),np.mean(total_rq_loss)
 
+
     @torch.no_grad()
     def _valid_epoch(self, valid_data):
 
         self.model.eval()
-
 
         loss_total = []
         loss_recon_total = []
@@ -132,10 +125,10 @@ class Trainer(object):
     def _save_checkpoint(self, epoch, loss, ckpt_file=None):
 
         ckpt_path = os.path.join(self.ckpt_dir,ckpt_file) if ckpt_file \
-            else os.path.join(self.ckpt_dir, 'epoch_%d_val_loss_%.4f_model.pth' % (epoch, loss))
+            else os.path.join(self.ckpt_dir, 'epoch_%d_val_loss_%.4f_model.pth' % (epoch + 1, loss))
         state = {
             "args": self.args,
-            "epoch": epoch,
+            "epoch": epoch + 1,
             "best_loss": self.best_loss,
             "state_dict": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -143,65 +136,60 @@ class Trainer(object):
         torch.save(state, ckpt_path, pickle_protocol=4)
 
         self.logger.info(
-            set_color("Saving current", "blue") + f": {ckpt_path}"
+            "Saving current" + f": {ckpt_path}"
         )
         
 
     def _generate_train_loss_output(self, epoch_idx, s_time, e_time, loss, recon_loss):
         train_loss_output = (
-            set_color("epoch %d training", "green")
+            "epoch %d training"
             + " ["
-            + set_color("time", "blue")
+            + "time"
             + ": %.2fs, "
-        ) % (epoch_idx, e_time - s_time)
-        train_loss_output += set_color("train loss", "blue") + ": %.4f" % loss
+        ) % (epoch_idx + 1, e_time - s_time)
+        train_loss_output += "train loss" + ": %.4f" % loss
         train_loss_output +=", "
-        train_loss_output += set_color("reconstruction loss", "blue") + ": %.4f" % recon_loss
+        train_loss_output += "reconstruction loss" + ": %.4f" % recon_loss
         return train_loss_output + "]"
 
 
     def fit(self, train_data,valid_data):
 
-
-        for epoch_idx in tqdm(range(self.epochs),desc=set_color("Training","pink"),total=self.epochs):
+        for epoch_idx in tqdm(range(self.epochs),desc="Training",total=self.epochs):
             # train
-            training_start_time = time()
+            s_time = time()
             train_loss, train_recon_loss,train_cap_loss,train_rq_loss = self._train_epoch(train_data, epoch_idx)
-            training_end_time = time()
-            # train_loss_output = self._generate_train_loss_output(
-            #     epoch_idx, training_start_time, training_end_time, train_loss, train_recon_loss
-            # )
-            #self.logger.info(train_loss_output)
+            e_time = time()
+
             self.wandb.log({"train_loss":train_loss,"train_recon_loss":train_recon_loss,"train_cap_loss":train_cap_loss,"train_rq_loss":train_rq_loss})
-
-            if train_loss < self.best_loss:
-                self.best_loss = train_loss
-                # self._save_checkpoint(epoch=epoch_idx,ckpt_file=self.best_loss_ckpt)
-
+            self.logger.info(
+                self._generate_train_loss_output(epoch_idx, s_time, e_time, train_loss,train_recon_loss)
+            )
             # eval
             if (epoch_idx + 1) % self.eval_step == 0:
                 valid_start_time = time()
                 val_loss,val_loss_recon,val_loss_cap,val_rq_loss = self._valid_epoch(valid_data)
-                if (epoch_idx + 1) % self.save_step==0:
-                    self._save_checkpoint(epoch_idx, val_loss)
+                # if (epoch_idx + 1) % self.save_step == 0:
+                #     self._save_checkpoint(epoch_idx, val_loss)
 
                 valid_end_time = time()
                 valid_score_output = (
-                    set_color("epoch %d evaluating", "green")
+                    "epoch %d evaluating"
                     + " ["
-                    + set_color("time", "blue")
+                    + "time"
                     + ": %.2fs, "
-                    + set_color("loss", "blue")
+                    + "loss"
                     + ": %f"
-                    + set_color("loss_recon", "blue")
+                    + "loss_recon"
                     + ": %f]"
-                ) % (epoch_idx, valid_end_time - valid_start_time, val_loss,val_loss_recon)
+                ) % (epoch_idx + 1, valid_end_time - valid_start_time, val_loss,val_loss_recon)
 
-                #self.logger.info(valid_score_output)
                 self.wandb.log({"val_loss":val_loss,"val_recon_loss":val_loss_recon,"val_cap_loss":val_loss_cap,"val_rq_loss":val_rq_loss})
-                # if epoch_idx>2500:
-                #     self._save_checkpoint(epoch_idx, collision_rate=collision_rate)
-
+                self.logger.info(valid_score_output)
+            
+            # save 
+            if (epoch_idx + 1) % self.save_step == 0:
+                    self._save_checkpoint(epoch_idx, train_loss)
 
         return self.best_loss
 
