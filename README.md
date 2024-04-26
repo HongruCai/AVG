@@ -64,7 +64,5 @@ bash scripts/test_llama.sh
 ## BibTeX
 
 ## Acknowledgements
-Part of the code is based on the following repositories:
-
 
 ## Contact
