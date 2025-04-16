@@ -1,18 +1,18 @@
-deepspeed --master_port=23333 finetune_llama.py \
-    --data_path data/flickr/flickr_codes_1024_llama \
-    --output_dir output/flickr \
+deepspeed --master_port=23333 finetune_retriever_llama.py \
+    --data_path data/flickr/flickr_codes \
+    --output_dir output/retriever/flickr \
     --model_name meta-llama/Llama-2-7b-hf \
     --train_epoch 10 \
     --learning_rate 3e-4 \
-    --train_batch_size 8 \
+    --train_batch_size 1 \
     --code_book_size 1024 \
     --code_book_num 1 \
     --wandb_log_freq 1 \
-    --source_length 128 \
+    --source_length 1024 \
     --warmup_ratio 0.1 \
     --eval_strategy epoch \
     --save_strategy epoch \
-    --save_total_limit 5 \
+    --save_total_limit 1 \
     --logging_steps 100 \
     --deepseed_config config/llama_ds_config.json \
     --gradient_accumulation_steps 16 \

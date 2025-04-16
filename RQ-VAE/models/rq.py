@@ -11,7 +11,8 @@ class ResidualVectorQuantizer(nn.Module):
     """
 
     def __init__(self, n_e_list, e_dim, code_length,
-                 kmeans_init = False, kmeans_iters = 100):
+                 kmeans_init=False, kmeans_iters=100,
+                 sk_epsilons=[0.003], sk_iters=100):
         super().__init__()
         self.n_e_list = n_e_list
         self.e_dim = e_dim
@@ -20,11 +21,16 @@ class ResidualVectorQuantizer(nn.Module):
         self.kmeans_init = kmeans_init
         self.kmeans_iters = kmeans_iters
 
+        self.sk_epsilons = sk_epsilons
+        self.sk_iters = sk_iters
+
         self.vq_layers = nn.ModuleList([VectorQuantizer(n_e, e_dim,
-                                                        kmeans_init = self.kmeans_init,
-                                                        kmeans_iters = self.kmeans_iters,
+                                                        kmeans_init=self.kmeans_init,
+                                                        kmeans_iters=self.kmeans_iters,
+                                                        sk_epsilon=sk_epsilon,
+                                                        sk_iters=sk_iters
                                                         )
-                                        for n_e in n_e_list ])
+                                        for n_e, sk_epsilon in zip(n_e_list, sk_epsilons)])
 
     def get_codebook(self):
         all_codebook = []
@@ -33,7 +39,7 @@ class ResidualVectorQuantizer(nn.Module):
             all_codebook.append(codebook)
         return torch.stack(all_codebook)
 
-    def forward(self, x):
+    def forward(self, x, use_sinkhorn=False):
         all_losses = []
         all_indices = []
 
@@ -42,7 +48,10 @@ class ResidualVectorQuantizer(nn.Module):
         if self.num_quantizers == 1:
             quantizer = self.vq_layers[0]
             for _ in range(self.code_length):
-                x_res, loss, indices = quantizer(residual)
+                if _ == self.code_length - 1:
+                    x_res, loss, indices = quantizer(residual, use_sinkhorn=use_sinkhorn)  # avoid repeated codes
+                else:
+                    x_res, loss, indices = quantizer(residual, use_sinkhorn=False)
                 residual = residual - x_res
                 x_q = x_q + x_res
 

@@ -1,14 +1,14 @@
-deepspeed --master_port=29511 train_t5_ltr.py \
-    --data_path data/flickr/flickr_codes_1024 \
-    --output_dir output/flickr_ltr \
-    --model_name_path  output/flickr/t5-base/t5-base_flickr_codes_1024/checkpoint-11720 \
+deepspeed --master_port=29511 train_retriever_t5_stage2.py \
+    --data_path data/flickr/flickr_ft \
+    --output_dir output/retriever/flickr_s2 \
+    --model_name_path output/flickr/t5-base/20250412_2145_flickr_ft_c1024_ep100_lr0.001_bch128_embadded/checkpoint-11134 \
     --train_epoch 5 \
     --learning_rate 1e-4 \
-    --train_batch_size 32 \
+    --train_batch_size 8 \
     --wandb_log_freq 1 \
     --source_length 128 \
     --target_length 8 \
-    --gen_len 20 \
+    --gen_len 8 \
     --warmup_ratio 0.1 \
     --eval_strategy epoch \
     --save_strategy no \
@@ -18,4 +18,4 @@ deepspeed --master_port=29511 train_t5_ltr.py \
     --gradient_accumulation_steps 4 \
     --temperature 1.0 \
     --ltr_loss_factor 0.5 \
-    --margin 5.0 \
+    --margin 1.0 \

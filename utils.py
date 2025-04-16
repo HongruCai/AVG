@@ -1,6 +1,12 @@
 import os
 from torch.utils.data import Dataset
-from transformers import Trainer, TrainingArguments, TrainerCallback, DataCollatorWithPadding, GenerationConfig
+from transformers import (
+    Trainer,
+    TrainingArguments,
+    TrainerCallback,
+    DataCollatorWithPadding,
+    GenerationConfig,
+)
 import torch
 import logging
 from torch.utils.data import DataLoader
@@ -12,22 +18,36 @@ from typing import Dict, List
 import torch.nn.functional as F
 import sys
 
+
 def preprocess_function(source_text, target_text, tokenizer):
     prefix_text = f"Below is an instruction that describes a task. Write a response that appropriately completes the request. ### Instruction:{source_text} ### Response:"
     response_text = f"{prefix_text}{target_text}</s>"
-    
-    input = tokenizer(response_text, return_tensors=None,  max_length=128, truncation=True, padding='max_length')
-    input_ids = input['input_ids']
+
+    input = tokenizer(
+        response_text,
+        return_tensors=None,
+        max_length=128,
+        truncation=True,
+        padding="max_length",
+    )
+    input_ids = input["input_ids"]
 
     labels = input_ids.copy()
-    
-    output_start_index = len(tokenizer.encode(prefix_text,max_length=128, truncation=True, padding='max_length')) - 9
+
+    output_start_index = (
+        len(
+            tokenizer.encode(
+                prefix_text, max_length=128, truncation=True, padding="max_length"
+            )
+        )
+        - 9
+    )
     labels[:output_start_index] = [-100] * output_start_index
 
     return {
-        'input_ids': input_ids,
-        'attention_mask': input['attention_mask'],
-        'labels': labels
+        "input_ids": input_ids,
+        "attention_mask": input["attention_mask"],
+        "labels": labels,
     }
 
 
@@ -45,7 +65,7 @@ def llama_prefix_allowed_tokens_fn(candidate_trie):
         sentence = sentence.tolist()
         # 13291 is the token id for vokens, so the function can return the correct allowed tokens
         # you may need to change this value in your case
-        index = sentence.index(13291) 
+        index = sentence.index(13291)
         sentence = sentence[index:]
         trie_out = candidate_trie.get(sentence)
         return trie_out
@@ -54,26 +74,26 @@ def llama_prefix_allowed_tokens_fn(candidate_trie):
 
 
 def load_codes(target_file):
-    with  open(target_file, 'r', encoding='utf-8') as tgt_file:
+    with open(target_file, "r", encoding="utf-8") as tgt_file:
         target_lines = tgt_file.readlines()
     res = []
     for i in range(len(target_lines)):
         if i % 5 == 0 and target_lines[i].strip() not in res:
             res.append(target_lines[i].strip())
-    target_lines = res   
+    target_lines = res
 
     return target_lines
 
 
-def load_prompt(source_file,target_file,sub_size=None):
-    target_lines = open(target_file, encoding='utf-8').read().splitlines()
-    source_lines = open(source_file, encoding='utf-8').read().splitlines()
-    
+def load_prompt(source_file, target_file, sub_size=None):
+    target_lines = open(target_file, encoding="utf-8").read().splitlines()
+    source_lines = open(source_file, encoding="utf-8").read().splitlines()
+
     if sub_size is not None and sub_size < len(source_lines):
         indeces = np.random.choice(len(source_lines), sub_size, replace=False)
         source_lines = [source_lines[i] for i in indeces]
         target_lines = [target_lines[i] for i in indeces]
-    
+
     source = []
     target = []
     for i in range(len(source_lines)):
@@ -82,14 +102,14 @@ def load_prompt(source_file,target_file,sub_size=None):
         prefix_text = f"Below is an instruction that describes a task. Write a response that appropriately completes the request. ### Instruction:{source_text} ### Response:"
         source.append(prefix_text)
         target.append(target_text)
-    
+
     return source, target
 
 
-def load_response(source_file,target_file):
-    target_lines = open(target_file, encoding='utf-8').read().splitlines()
-    source_lines = open(source_file, encoding='utf-8').read().splitlines()
-    
+def load_response(source_file, target_file):
+    target_lines = open(target_file, encoding="utf-8").read().splitlines()
+    source_lines = open(source_file, encoding="utf-8").read().splitlines()
+
     res = []
     for i in range(len(source_lines)):
         prefix_text = f"Response:{target_lines[i]}</s>"
@@ -184,13 +204,24 @@ class Trie(object):
 
 
 class T5Dataset(Dataset):
-    def __init__(self, tokenizer, source_file, target_file, max_source_len=128, max_target_len=8, add_prefix=False,subset_size=None):
+    def __init__(
+        self,
+        tokenizer,
+        source_file,
+        target_file,
+        max_source_len=128,
+        max_target_len=8,
+        add_prefix=False,
+        subset_size=None,
+    ):
         self.tokenizer = tokenizer
-        self.source_texts = open(source_file, encoding='utf-8').read().splitlines()
-        self.target_texts = open(target_file, encoding='utf-8').read().splitlines()
+        self.source_texts = open(
+            source_file, encoding="utf-8").read().splitlines()
+        self.target_texts = open(
+            target_file, encoding="utf-8").read().splitlines()
         self.max_source_len = max_source_len
         self.max_target_len = max_target_len
-        self.subset_size = subset_size  
+        self.subset_size = subset_size
         self.add_prefix = add_prefix
 
         if self.subset_size is not None:
@@ -208,9 +239,21 @@ class T5Dataset(Dataset):
             source_text = f"Below is an instruction that describes a task. Write a response that appropriately completes the request. Instruction:{source_text} Response:"
         target_text = self.target_texts[idx]
 
-        source_encodings = self.tokenizer(source_text, padding='max_length', max_length=self.max_source_len, truncation=True, return_tensors="pt")
-        target_encodings = self.tokenizer(target_text, padding='max_length', max_length=self.max_target_len, truncation=True, return_tensors="pt")
-        #print(target_encodings)
+        source_encodings = self.tokenizer(
+            source_text,
+            padding="max_length",
+            max_length=self.max_source_len,
+            truncation=True,
+            return_tensors="pt",
+        )
+        target_encodings = self.tokenizer(
+            target_text,
+            padding="max_length",
+            max_length=self.max_target_len,
+            truncation=True,
+            return_tensors="pt",
+        )
+        # print(target_encodings)
 
         input_ids = source_encodings["input_ids"]
         labels = target_encodings["input_ids"]
@@ -223,9 +266,11 @@ class T5Dataset(Dataset):
 class LLaMaDataset(Dataset):
     def __init__(self, tokenizer, source_file, target_file, subset_size=None):
         self.tokenizer = tokenizer
-        self.source_texts = open(source_file, encoding='utf-8').read().splitlines()
-        self.target_texts = open(target_file, encoding='utf-8').read().splitlines()
-        self.subset_size = subset_size  
+        self.source_texts = open(
+            source_file, encoding="utf-8").read().splitlines()
+        self.target_texts = open(
+            target_file, encoding="utf-8").read().splitlines()
+        self.subset_size = subset_size
 
         if self.subset_size is not None:
             indices = list(range(len(self.source_texts)))
@@ -243,7 +288,20 @@ class LLaMaDataset(Dataset):
 
 
 class QueryEvalCallback(TrainerCallback):
-    def __init__(self, local_rank,test_dataset_1, test_dataset_2, tgt_file,logger, batch_size, collator, tokenizer,wandb=None,log_freq=3,gen_len=20):
+    def __init__(
+        self,
+        local_rank,
+        test_dataset_1,
+        test_dataset_2,
+        tgt_file,
+        logger,
+        batch_size,
+        collator,
+        tokenizer,
+        wandb=None,
+        log_freq=3,
+        gen_len=20,
+    ):
         self.tokenizer = tokenizer
         self.logger = logger
         self.test_dataset_1 = test_dataset_1
@@ -265,9 +323,11 @@ class QueryEvalCallback(TrainerCallback):
             num_workers=10,
         )
         self.code_list = load_codes(tgt_file)
-        condidate_trie = Trie([[0]+self.tokenizer.encode(x) for x in self.code_list])
-        #print(condidate_trie)
-        self.test_prefix_allowed_tokens_fn = prefix_allowed_tokens_fn(condidate_trie)
+        condidate_trie = Trie([[0] + self.tokenizer.encode(x)
+                              for x in self.code_list])
+        # print(condidate_trie)
+        self.test_prefix_allowed_tokens_fn = prefix_allowed_tokens_fn(
+            condidate_trie)
         self.wandb = wandb if wandb else None
         self.log_freq = log_freq
         self.gen_len = gen_len
@@ -285,29 +345,34 @@ class QueryEvalCallback(TrainerCallback):
         recall_count_at_1_2 = 0
         recall_count_at_5_2 = 0
         recall_count_at_10_2 = 0
-        model = kwargs['model'].eval()
-        
-        for batch_1 in tqdm(self.dataloader_1, desc='Evaluating train queries'):
+        model = kwargs["model"].eval()
+
+        for batch_1 in tqdm(self.dataloader_1, desc="Evaluating train queries"):
             inputs_1 = batch_1
             with torch.no_grad():
                 generation_config = GenerationConfig(
-                        num_beams=10,
-                        max_new_tokens=self.gen_len,
-                        num_return_sequences=10,
-                        # output_scores=True,
-                        # return_dict_in_generate=True,
-                        early_stopping=True,
-                        use_cache=False,
+                    num_beams=10,
+                    max_new_tokens=self.gen_len,
+                    num_return_sequences=10,
+                    # output_scores=True,
+                    # return_dict_in_generate=True,
+                    early_stopping=True,
+                    use_cache=True,
+                )
+                batch_beams_1 = model.generate(
+                    inputs_1["input_ids"].to(model.device),
+                    generation_config=generation_config,
+                ).reshape(inputs_1["input_ids"].shape[0], 10, -1)
+                for beams, label in zip(batch_beams_1, inputs_1["labels"]):
+                    rank_list = self.tokenizer.batch_decode(
+                        beams, skip_special_tokens=True
                     )
-                batch_beams_1 = model.generate(inputs_1['input_ids'].to(model.device),
-                                        generation_config=generation_config
-                                        ).reshape(inputs_1['input_ids'].shape[0], 10, -1)
-                for beams, label in zip(batch_beams_1, inputs_1['labels']):
-                    rank_list = self.tokenizer.batch_decode(beams, skip_special_tokens=True) 
-                    rank_list = [x.split(' ') for x in rank_list]
+                    rank_list = [x.split(" ") for x in rank_list]
                     label[label == -100] = self.tokenizer.pad_token_id
-                    label = self.tokenizer.decode(label, skip_special_tokens=True).strip()
-                    label = label.split(' ')
+                    label = self.tokenizer.decode(
+                        label, skip_special_tokens=True
+                    ).strip()
+                    label = label.split(" ")
                     hits = [i for i, x in enumerate(rank_list) if x == label]
                     hits = [x for x in hits if x < 10]
                     if len(hits) != 0:
@@ -316,39 +381,50 @@ class QueryEvalCallback(TrainerCallback):
                             recall_count_at_5_1 += 1
                         if hits[0] == 0:
                             recall_count_at_1_1 += 1
-        
+
         hits_at_1_data_1 = recall_count_at_1_1 / len(self.test_dataset_1)
         hits_at_5_data_1 = recall_count_at_5_1 / len(self.test_dataset_1)
         hits_at_10_data_1 = recall_count_at_10_1 / len(self.test_dataset_1)
-        
+
         log_msg = f"Epoch {current_epoch} training set: Recall@1: {hits_at_1_data_1}, Recall@5: {hits_at_5_data_1}, Recall@10: {hits_at_10_data_1}"
         self.logger.info(log_msg)
         if self.wandb:
-            self.wandb.log({' Train Recall@1': hits_at_1_data_1, ' Train Recall@5': hits_at_5_data_1, ' Train Recall@10': hits_at_10_data_1})
+            self.wandb.log(
+                {
+                    " Train Recall@1": hits_at_1_data_1,
+                    " Train Recall@5": hits_at_5_data_1,
+                    " Train Recall@10": hits_at_10_data_1,
+                }
+            )
 
-        for batch_2 in tqdm(self.dataloader_2, desc='Evaluating test queries'):
+        for batch_2 in tqdm(self.dataloader_2, desc="Evaluating test queries"):
             inputs_2 = batch_2
             with torch.no_grad():
                 generation_config = GenerationConfig(
-                        num_beams=10,
-                        max_new_tokens=self.gen_len,
-                        num_return_sequences=10,
-                        # output_scores=True,
-                        # return_dict_in_generate=True,
-                        early_stopping=True,
-                        use_cache=False,
+                    num_beams=10,
+                    max_new_tokens=self.gen_len,
+                    num_return_sequences=10,
+                    # output_scores=True,
+                    # return_dict_in_generate=True,
+                    early_stopping=True,
+                    use_cache=True,
+                )
+                batch_beams_2 = model.generate(
+                    inputs_2["input_ids"].to(model.device),
+                    generation_config=generation_config,
+                    prefix_allowed_tokens_fn=self.test_prefix_allowed_tokens_fn,
+                ).reshape(inputs_2["input_ids"].shape[0], 10, -1)
+
+                for beams, label in zip(batch_beams_2, inputs_2["labels"]):
+                    rank_list = self.tokenizer.batch_decode(
+                        beams, skip_special_tokens=True
                     )
-                batch_beams_2 = model.generate(inputs_2['input_ids'].to(model.device),
-                                        generation_config=generation_config,
-                                        prefix_allowed_tokens_fn=self.test_prefix_allowed_tokens_fn
-                                        ).reshape(inputs_2['input_ids'].shape[0], 10, -1)
-                
-                for beams, label in zip(batch_beams_2, inputs_2['labels']):
-                    rank_list = self.tokenizer.batch_decode(beams, skip_special_tokens=True) 
-                    rank_list = [x.split(' ') for x in rank_list]
+                    rank_list = [x.split(" ") for x in rank_list]
                     label[label == -100] = self.tokenizer.pad_token_id
-                    label = self.tokenizer.decode(label, skip_special_tokens=True).strip()
-                    label = label.split(' ')
+                    label = self.tokenizer.decode(
+                        label, skip_special_tokens=True
+                    ).strip()
+                    label = label.split(" ")
 
                     hits = [i for i, x in enumerate(rank_list) if x == label]
                     hits = [x for x in hits if x < 10]
@@ -369,7 +445,13 @@ class QueryEvalCallback(TrainerCallback):
         log_msg = f"Epoch {current_epoch} test set: Recall@1: {hits_at_1_data_2}, Recall@5: {hits_at_5_data_2}, Recall@10: {hits_at_10_data_2}\n"
         self.logger.info(log_msg)
         if self.wandb:
-            self.wandb.log({' Test Recall@1': hits_at_1_data_2, ' Test Recall@5': hits_at_5_data_2, ' Test Recall@10': hits_at_10_data_2})
+            self.wandb.log(
+                {
+                    " Test Recall@1": hits_at_1_data_2,
+                    " Test Recall@5": hits_at_5_data_2,
+                    " Test Recall@10": hits_at_10_data_2,
+                }
+            )
 
 
 class TrainerwithTemperature(Trainer):
@@ -381,17 +463,17 @@ class TrainerwithTemperature(Trainer):
         labels = inputs.get("labels")
         outputs = model(**inputs)
         logits = outputs.logits
-        
+
         logits = logits / self.temperature
         loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
         # print(logits.shape, labels.shape)
         loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
 
         return (loss, outputs) if return_outputs else loss
-    
+
 
 class LlaMaTrainerwithTemperature(Trainer):
-    def __init__(self, temperature=1.0, vocab_size=32000,*args, **kwargs):
+    def __init__(self, temperature=1.0, vocab_size=32000, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.temperature = temperature
         self.vocab_size = vocab_size
@@ -416,7 +498,15 @@ class LlaMaTrainerwithTemperature(Trainer):
 
 
 class LTRTrainer(Trainer):
-    def __init__(self, temperature=1.0, ltr_loss_factor=1.0, train_allowed_tokens=None, margin=1.0, *args, **kwargs):
+    def __init__(
+        self,
+        temperature=1.0,
+        ltr_loss_factor=1.0,
+        train_allowed_tokens=None,
+        margin=1.0,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.temperature = temperature
         self.train_allowed_tokens = train_allowed_tokens
@@ -427,21 +517,23 @@ class LTRTrainer(Trainer):
         labels = inputs.get("labels")
         outputs = model(**inputs)
         logits = outputs.logits
-        
+
         logits = logits / self.temperature
 
         loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
         tem_loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
         ltr_loss = self.multi_ltr_loss(model, inputs, logits, labels)
-        
+
         loss = self.ltr_loss_factor * ltr_loss + tem_loss
 
         return (loss, outputs) if return_outputs else loss
-    
 
     def ltr_loss(self, model, inputs, logits, labels, margin):
 
-        if isinstance(model, (torch.nn.DataParallel, torch.nn.parallel.DistributedDataParallel)):
+        if isinstance(
+            model, (torch.nn.DataParallel,
+                    torch.nn.parallel.DistributedDataParallel)
+        ):
             model = model.module
 
         num_beams = 10
@@ -453,42 +545,54 @@ class LTRTrainer(Trainer):
             use_cache=False,
         )
 
-        beams = model.generate(inputs.get("input_ids"),
-                                generation_config=generation_config,
-                                prefix_allowed_tokens_fn=self.train_allowed_tokens
-                                ).reshape(inputs.get("input_ids").shape[0], 10, -1)
-        
+        beams = model.generate(
+            inputs.get("input_ids"),
+            generation_config=generation_config,
+            prefix_allowed_tokens_fn=self.train_allowed_tokens,
+        ).reshape(inputs.get("input_ids").shape[0], 10, -1)
+
         # positive scores
-        positive_logits = logits[:,:5,:]
+        positive_logits = logits[:, :5, :]
         positive_probs = F.log_softmax(positive_logits, dim=-1)
-        positive_selected_probs = torch.gather(positive_probs, 2, labels[:,:5].unsqueeze(-1)).squeeze(-1)
-        positive_scores = positive_selected_probs.sum(dim=1)  
+        positive_selected_probs = torch.gather(
+            positive_probs, 2, labels[:, :5].unsqueeze(-1)
+        ).squeeze(-1)
+        positive_scores = positive_selected_probs.sum(dim=1)
 
         # negative scores
         batch_size, num_beams, seq_length = beams.size()
-        negative_indices = torch.empty(batch_size, seq_length-1,dtype=torch.long, device=labels.device)
+        negative_indices = torch.empty(
+            batch_size, seq_length - 1, dtype=torch.long, device=labels.device
+        )
 
         for i in range(batch_size):
-            positive_seq = labels[i, :5]  
-            filtered_beams = [beam[1:] for beam in beams[i] if not torch.equal(beam[1:], positive_seq)]
-            negative_seq = random.choice(filtered_beams) 
+            positive_seq = labels[i, :5]
+            filtered_beams = [
+                beam[1:] for beam in beams[i] if not torch.equal(beam[1:], positive_seq)
+            ]
+            negative_seq = random.choice(filtered_beams)
             negative_indices[i] = negative_seq
 
-        #print(negative_indices)
-        negative_logits = model(inputs.get("input_ids"), labels=negative_indices).logits 
+        # print(negative_indices)
+        negative_logits = model(inputs.get("input_ids"),
+                                labels=negative_indices).logits
         negative_probs = F.log_softmax(negative_logits, dim=-1)
-        negative_selected_probs = torch.gather(negative_probs, 2, negative_indices.unsqueeze(-1)).squeeze(-1)
-        negative_scores = negative_selected_probs.sum(dim=1)  
+        negative_selected_probs = torch.gather(
+            negative_probs, 2, negative_indices.unsqueeze(-1)
+        ).squeeze(-1)
+        negative_scores = negative_selected_probs.sum(dim=1)
 
         losses = F.relu(negative_scores - positive_scores + margin)
         loss = losses.mean()
 
         return loss
 
-
     def prefix_ltr_loss(self, model, inputs, logits, labels, temperature, margin):
 
-        if isinstance(model, (torch.nn.DataParallel, torch.nn.parallel.DistributedDataParallel)):
+        if isinstance(
+            model, (torch.nn.DataParallel,
+                    torch.nn.parallel.DistributedDataParallel)
+        ):
             model = model.module
 
         prefix_loss = []
@@ -501,16 +605,19 @@ class LTRTrainer(Trainer):
                 early_stopping=True,
                 use_cache=False,
             )
-            beams = model.generate(inputs.get("input_ids"),
-                                    generation_config=generation_config,
-                                    prefix_allowed_tokens_fn=self.train_allowed_tokens
-                                    ).reshape(inputs.get("input_ids").shape[0], 10, -1)
-            
+            beams = model.generate(
+                inputs.get("input_ids"),
+                generation_config=generation_config,
+                prefix_allowed_tokens_fn=self.train_allowed_tokens,
+            ).reshape(inputs.get("input_ids").shape[0], 10, -1)
+
             # positive scores
-            positive_logits = logits[:,:prefix_length,:]
+            positive_logits = logits[:, :prefix_length, :]
             positive_probs = F.log_softmax(positive_logits, dim=-1)
-            positive_selected_probs = torch.gather(positive_probs, 2, labels[:,:prefix_length].unsqueeze(-1)).squeeze(-1)
-            positive_scores = positive_selected_probs.sum(dim=1)  
+            positive_selected_probs = torch.gather(
+                positive_probs, 2, labels[:, :prefix_length].unsqueeze(-1)
+            ).squeeze(-1)
+            positive_scores = positive_selected_probs.sum(dim=1)
 
             # print(prefix_length)
             # print(labels[0,:prefix_length])
@@ -518,31 +625,44 @@ class LTRTrainer(Trainer):
             # print(beams[0])
             # negative scores
             batch_size, num_beams, seq_length = beams.size()
-            negative_indices = torch.empty(batch_size, seq_length-1, dtype=torch.long, device=labels.device)
+            negative_indices = torch.empty(
+                batch_size, seq_length - 1, dtype=torch.long, device=labels.device
+            )
 
             for i in range(batch_size):
-                positive_seq = labels[i, :prefix_length]  
-                filtered_beams = [beam[1:] for beam in beams[i] if not torch.equal(beam[1:], positive_seq)]
-                negative_seq = random.choice(filtered_beams) 
+                positive_seq = labels[i, :prefix_length]
+                filtered_beams = [
+                    beam[1:]
+                    for beam in beams[i]
+                    if not torch.equal(beam[1:], positive_seq)
+                ]
+                negative_seq = random.choice(filtered_beams)
                 negative_indices[i] = negative_seq
 
-            #print(negative_indices[0])
-            negative_logits = model(inputs.get("input_ids"), labels=negative_indices).logits / temperature
+            # print(negative_indices[0])
+            negative_logits = (
+                model(inputs.get("input_ids"), labels=negative_indices).logits
+                / temperature
+            )
             negative_probs = F.log_softmax(negative_logits, dim=-1)
-            negative_selected_probs = torch.gather(negative_probs, 2, negative_indices.unsqueeze(-1)).squeeze(-1)
-            negative_scores = negative_selected_probs.sum(dim=1)  
-            #print(negative_scores[0])
+            negative_selected_probs = torch.gather(
+                negative_probs, 2, negative_indices.unsqueeze(-1)
+            ).squeeze(-1)
+            negative_scores = negative_selected_probs.sum(dim=1)
+            # print(negative_scores[0])
 
             losses = F.relu(negative_scores - positive_scores + margin)
             loss = losses.mean()
             prefix_loss.append(loss)
-        
+
         return sum(prefix_loss) / len(prefix_loss)
 
-
     def multi_ltr_loss(self, model, inputs, logits, labels):
-        
-        if isinstance(model, (torch.nn.DataParallel, torch.nn.parallel.DistributedDataParallel)):
+
+        if isinstance(
+            model, (torch.nn.DataParallel,
+                    torch.nn.parallel.DistributedDataParallel)
+        ):
             model = model.module
 
         num_beams = 10
@@ -553,16 +673,19 @@ class LTRTrainer(Trainer):
             early_stopping=True,
             use_cache=False,
         )
-        beams = model.generate(inputs.get("input_ids"),
-                                generation_config=generation_config,
-                                prefix_allowed_tokens_fn=self.train_allowed_tokens
-                                ).reshape(inputs.get("input_ids").shape[0], num_beams, -1)
-        
+        beams = model.generate(
+            inputs.get("input_ids"),
+            generation_config=generation_config,
+            prefix_allowed_tokens_fn=self.train_allowed_tokens,
+        ).reshape(inputs.get("input_ids").shape[0], num_beams, -1)
+
         # positive scores
-        positive_logits = logits[:,:5,:]
+        positive_logits = logits[:, :5, :]
         positive_probs = F.log_softmax(positive_logits, dim=-1)
-        positive_selected_probs = torch.gather(positive_probs, 2, labels[:,:5].unsqueeze(-1)).squeeze(-1)
-        positive_scores = positive_selected_probs.sum(dim=1)  
+        positive_selected_probs = torch.gather(
+            positive_probs, 2, labels[:, :5].unsqueeze(-1)
+        ).squeeze(-1)
+        positive_scores = positive_selected_probs.sum(dim=1)
 
         # negative scores
         batch_size, num_beams, seq_length = beams.size()
@@ -570,16 +693,25 @@ class LTRTrainer(Trainer):
         losses = []
         for i in range(batch_size):
             positive_seq = labels[i, :5]
-            filtered_beams = [beam[1:] for beam in beams[i] if not torch.equal(beam[1:], positive_seq)]
-            input_i = inputs.get("input_ids")[i].unsqueeze(0).repeat(len(filtered_beams), 1)
+            filtered_beams = [
+                beam[1:] for beam in beams[i] if not torch.equal(beam[1:], positive_seq)
+            ]
+            input_i = (
+                inputs.get("input_ids")[i].unsqueeze(
+                    0).repeat(len(filtered_beams), 1)
+            )
             filtered_beams = torch.stack(filtered_beams, dim=0)
-            #print(filtered_beams)
+            # print(filtered_beams)
             negative_logits = model(input_i, labels=filtered_beams).logits
             negative_probs = F.log_softmax(negative_logits, dim=-1)
-            negative_selected_probs = torch.gather(negative_probs, 2, filtered_beams.unsqueeze(-1)).squeeze(-1) 
+            negative_selected_probs = torch.gather(
+                negative_probs, 2, filtered_beams.unsqueeze(-1)
+            ).squeeze(-1)
             negative_scores = negative_selected_probs.sum(dim=1)
-            #print(negative_scores)
-            total_scores = torch.cat((positive_scores[i].unsqueeze(0), negative_scores), dim=0)
+            # print(negative_scores)
+            total_scores = torch.cat(
+                (positive_scores[i].unsqueeze(0), negative_scores), dim=0
+            )
             total_prob = F.softmax(total_scores, dim=0)
             target = torch.zeros_like(total_scores)
             target[0] = 1
@@ -588,5 +720,4 @@ class LTRTrainer(Trainer):
         loss = torch.stack(losses).mean()
 
         return loss
-
 

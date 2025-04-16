@@ -7,9 +7,9 @@ import logging
 
 from torch.utils.data import DataLoader
 
-from dataset import EmbDataset,CapEmbDataset,CapPseudoEmbDataset
+from dataset import EmbDataset, CapEmbDataset, CapPseudoEmbDataset
 from models.rqvae import RQVAE
-from trainer import  Trainer
+from trainer import Trainer
 import wandb
 import os
 
@@ -20,10 +20,10 @@ def parse_args():
     parser.add_argument('--version', type=str, default='rq-vae', help='version signature, to distinguish different experiments')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--epochs', type=int, default=2000, help='number of epochs')
-    parser.add_argument('--batch_size', type=int, default=2048, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=8192, help='batch size')
     parser.add_argument('--num_workers', type=int, default=4, help='number of workers')
-    parser.add_argument('--eval_step', type=int, default=100, help='eval epoch')
-    parser.add_argument('--save_step', type=int, default=100, help='save epoch')
+    parser.add_argument('--eval_step', type=int, default=50, help='eval epoch')
+    parser.add_argument('--save_step', type=int, default=50, help='save epoch')
     parser.add_argument('--learner', type=str, default="AdamW", help='optimizer')
 
     parser.add_argument('--weight_decay', type=float, default=0, help='l2 regularization weight')
@@ -33,13 +33,13 @@ def parse_args():
     parser.add_argument("--kmeans_init", action='store_true', help="use kmeans_init or not")
     parser.add_argument("--kmeans_iters", type=int, default=100, help="max kmeans iters")
 
-    parser.add_argument("--device", type=str, default="cuda", help="gpu or cpu") # only support single gpu training
+    parser.add_argument("--device", type=str, default="cuda", help="gpu or cpu")  # only support single gpu training
 
     parser.add_argument('--num_emb_list', type=int, nargs='+', default=[1024], help='size of embedding of every rq')
     parser.add_argument('--code_length', type=int, default=4, help='rq code length')
     parser.add_argument('--e_dim', type=int, default=768, help='rq codebook embedding size')
     parser.add_argument('--quant_loss_weight', type=float, default=1.0, help='rq quantion loss weight')
-    parser.add_argument('--layers', type=int, nargs='+', default=[1024,512], help='hidden sizes of every layer')
+    parser.add_argument('--layers', type=int, nargs='+', default=[1024, 512], help='hidden sizes of every layer')
 
     parser.add_argument("--dataset", type=str, default="flickr", help="dataset name")
     parser.add_argument("--ckpt_dir", type=str, default="./RQ-VAE/output/rqvae/", help="output directory for model")
@@ -47,6 +47,8 @@ def parse_args():
     parser.add_argument("--use_pseudo", action='store_true', help="if use pseudo caption for training")
     parser.add_argument("--text_loss_type", type=str, default="mse", help="text align loss type")
     parser.add_argument("--text_loss_pos", type=str, default="after", help="text align loss position")
+
+    parser.add_argument("--use_sk", action='store_true', help="if use sinkhorn algorithm")
 
     return parser.parse_args()
 
@@ -73,9 +75,9 @@ if __name__ == '__main__':
     lr = 'lr'+str(args.lr)
     name = version+'_'+sturcture+'_'+mlp_layers+'_'+codebook_num+'-'+codebook+'_'+epochs+'_'+lr+'_'+loss_type
     print(name)
-    
-    wandb.init(project="rq-vae", config=args, name=name)
-    
+
+    wandb.init(project="AVG_tokenizer", config=args, name=name)
+
     dataset = args.dataset
     save_dir = args.ckpt_dir + '/' + name
     os.makedirs(save_dir)
@@ -89,44 +91,42 @@ if __name__ == '__main__':
                                              cap_path='data/'+dataset+'/emb/train_emb_captions.npy',
                                              pseudo_img='data/'+dataset+'/emb/pseudo_emb_images.npy',
                                              pseudo_cap='data/'+dataset+'/emb/pseudo_emb_captions.npy')
-            valid_data = CapEmbDataset(img_path='data/'+dataset+'/emb/val_emb_images.npy',
-                                       cap_path='data/'+dataset+'/emb/val_emb_captions.npy')
+            valid_data = CapEmbDataset(img_path='data/'+dataset+'/emb/test_emb_images.npy',
+                                       cap_path='data/'+dataset+'/emb/test_emb_captions.npy')
         else:
             train_data = CapEmbDataset(img_path='data/'+dataset+'/emb/train_emb_images.npy',
                                        cap_path='data/'+dataset+'/emb/train_emb_captions.npy')
-            valid_data = CapEmbDataset(img_path='data/'+dataset+'/emb/val_emb_images.npy',
-                                       cap_path='data/'+dataset+'/emb/val_emb_captions.npy')
+            valid_data = CapEmbDataset(img_path='data/'+dataset+'/emb/test_emb_images.npy',
+                                       cap_path='data/'+dataset+'/emb/test_emb_captions.npy')
     else:
         train_data = EmbDataset(data_path="data/"+dataset+"/emb/train_emb_images.npy")
-        valid_data = EmbDataset(data_path="data/"+dataset+"/emb/val_emb_images.npy")
+        valid_data = EmbDataset(data_path="data/"+dataset+"/emb/test_emb_images.npy")
 
-    print("num of training data",len(train_data))
-    print("num of valid data",len(valid_data))
-    
+    print("num of training data", len(train_data))
+    print("num of valid data", len(valid_data))
+
     model = RQVAE(in_dim=train_data.dim,
-                num_emb_list=args.num_emb_list,
-                code_length=args.code_length,
-                e_dim=args.e_dim,
-                layers=args.layers,
-                dropout_prob=args.dropout_prob,
-                bn=args.bn,
-                loss_type=args.loss_type,
-                text_loss_type=args.text_loss_type,
-                text_loss_pos=args.text_loss_pos,
-                quant_loss_weight=args.quant_loss_weight,
-                kmeans_init=args.kmeans_init,
-                kmeans_iters=args.kmeans_iters,
-                
-                )
-    
+                  num_emb_list=args.num_emb_list,
+                  code_length=args.code_length,
+                  e_dim=args.e_dim,
+                  layers=args.layers,
+                  dropout_prob=args.dropout_prob,
+                  bn=args.bn,
+                  loss_type=args.loss_type,
+                  text_loss_type=args.text_loss_type,
+                  text_loss_pos=args.text_loss_pos,
+                  quant_loss_weight=args.quant_loss_weight,
+                  kmeans_init=args.kmeans_init,
+                  kmeans_iters=args.kmeans_iters,
+                  use_sk=args.use_sk
+                  )
+
     print(model)
-    train_data_loader = DataLoader(train_data,num_workers=args.num_workers,
-                             batch_size=args.batch_size, shuffle=False,
-                             pin_memory=True)
-    valid_data_loader = DataLoader(valid_data,num_workers=args.num_workers,
-                                batch_size=args.batch_size, shuffle=True,
-                                pin_memory=True)
-    trainer = Trainer(args,model,wandb,save_dir=save_dir,logger=logger)
-    best_val_loss = trainer.fit(train_data=train_data_loader,valid_data=valid_data_loader)
-
-
+    train_data_loader = DataLoader(train_data, num_workers=args.num_workers,
+                                   batch_size=args.batch_size, shuffle=True,
+                                   pin_memory=True)
+    valid_data_loader = DataLoader(valid_data, num_workers=args.num_workers,
+                                   batch_size=args.batch_size, shuffle=False,
+                                   pin_memory=True)
+    trainer = Trainer(args, model, wandb, save_dir=save_dir, logger=logger)
+    best_val_loss = trainer.fit(train_data=train_data_loader, valid_data=valid_data_loader)

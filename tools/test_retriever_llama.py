@@ -94,7 +94,7 @@ if __name__ == '__main__':
                     max_new_tokens=20,
                     num_return_sequences=num_beams,
                     early_stopping=True,
-                    use_cache=False,
+                    use_cache=True,
                 )
                 beams = model.generate(input.to(device),
                                         generation_config=generation_config,

@@ -7,7 +7,10 @@
 /.vscode/
 /.idea/
 /valid_t5.py
-/analyze_code.py
+tools/analyze_code.py
+tools/test_t5.py
+tools/debug.py
+/models/pretrained/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

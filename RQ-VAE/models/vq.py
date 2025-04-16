@@ -7,13 +7,17 @@ from .layers import kmeans, sinkhorn_algorithm
 class VectorQuantizer(nn.Module):
 
     def __init__(self, n_e, e_dim,
-                 beta = 0.25, kmeans_init = False, kmeans_iters = 10):
+                 beta=0.25, kmeans_init=False, kmeans_iters=10,
+                 sk_epsilon=0.003, sk_iters=100):
         super().__init__()
         self.n_e = n_e
         self.e_dim = e_dim
         self.beta = beta
         self.kmeans_init = kmeans_init
         self.kmeans_iters = kmeans_iters
+
+        self.sk_epsilon = sk_epsilon
+        self.sk_iters = sk_iters
 
         self.embedding = nn.Embedding(self.n_e, self.e_dim)
         if not kmeans_init:
@@ -57,19 +61,33 @@ class VectorQuantizer(nn.Module):
         centered_distances = (distances - middle) / amplitude
         return centered_distances
 
-    def forward(self, x):
+    def forward(self, x, use_sinkhorn=False):
         # Flatten input
         latent = x.view(-1, self.e_dim)
 
         if not self.initted and self.training:
             self.init_emb(latent)
+            print("---------------RQ Embedding initialized.---------------")
 
         # Calculate the L2 Norm between latent and Embedded weights
         d = torch.sum(latent**2, dim=1, keepdim=True) + \
-            torch.sum(self.embedding.weight**2, dim=1, keepdim=True).t()- \
+            torch.sum(self.embedding.weight**2, dim=1, keepdim=True).t() - \
             2 * torch.matmul(latent, self.embedding.weight.t())
 
-        indices = torch.argmin(d, dim=-1)
+        if not use_sinkhorn or self.sk_epsilon <= 0:
+            indices = torch.argmin(d, dim=-1)
+            # print("=======",self.sk_epsilon)
+        else:
+            # print("++++++++",self.sk_epsilon)
+            d = self.center_distance_for_constraint(d)
+            d = d.double()
+            Q = sinkhorn_algorithm(d, self.sk_epsilon, self.sk_iters)
+            # print(Q.sum(0)[:10])
+            if torch.isnan(Q).any() or torch.isinf(Q).any():
+                print(f"Sinkhorn Algorithm returns nan/inf values.")
+            indices = torch.argmax(Q, dim=-1)
+
+        # indices = torch.argmin(d, dim=-1)
 
         # indices = torch.argmin(d, dim=-1)
 
@@ -86,5 +104,3 @@ class VectorQuantizer(nn.Module):
         indices = indices.view(x.shape[:-1])
 
         return x_q, loss, indices
-
-

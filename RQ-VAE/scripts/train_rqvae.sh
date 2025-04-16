@@ -1,6 +1,7 @@
 python -u train.py \
-  --version test\
-  --epochs 5000 \
+  --version xxx \
+  --epochs 3000 \
+  --batch_size 16384 \
   --dropout_prob 0.25 \
   --num_emb_list 1024 \
   --e_dim 768 \
@@ -13,5 +14,7 @@ python -u train.py \
   --kmeans_init \
   --use_cap \
   --use_pseudo \
+  --use_sk
+
 
 

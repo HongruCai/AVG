@@ -8,6 +8,7 @@ import wandb
 import argparse
 from utils import QueryEvalCallback, TrainerwithTemperature, T5Dataset
 from peft import TaskType, LoraConfig, get_peft_model, PeftModel
+from datetime import datetime
 
 
 def parse_args():
@@ -40,7 +41,7 @@ def parse_args():
     parser.add_argument('--float16', action='store_true', help='use float16')
     parser.add_argument('--bf16', action='store_true', help='use bf16')
     parser.add_argument('--lora', action='store_true', help='use lora')
-    
+
     return parser.parse_args()
 
 
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     val_target_file = data_path + '/val.target'
     test_source_file = data_path + '/test.source'
     test_target_file = data_path + '/test.target'
-    
+
     train_epoch = train_args.train_epoch
     learning_rate = train_args.learning_rate
     train_batch_size = train_args.train_batch_size
@@ -72,30 +73,32 @@ if __name__ == '__main__':
     gen_len = train_args.gen_len
 
     rq_signal = 'embadded' if add_embedding else 'noemb'
-    output_dir = model_name.split('/')[-1]+'_'+str(data_path.split('/')[-1])+'_c'+str(code_book_size)+'_ep'+str(train_epoch)+'_lr'+str(learning_rate)+'_bch'+str(train_batch_size)+'_'+ rq_signal
+    current_time = datetime.now().strftime("%Y%m%d_%H%M")
+    output_dir = current_time+'_'+str(data_path.split('/')[-1])+'_c'+str(code_book_size)+'_ep' + \
+        str(train_epoch)+'_lr'+str(learning_rate)+'_bch'+str(train_batch_size)+'_' + rq_signal
 
     local_rank = int(os.environ.get("LOCAL_RANK") or 0)
 
     if local_rank == 0:
         wandb.login()
-        wandb.init(project='huggingface',name=output_dir)
-    
+        wandb.init(project='AVG_retriever', name=output_dir)
+
     output_dir_name = train_args.output_dir + '/' + train_args.model_name.split('/')[-1] + '/' + output_dir
 
     tokenizer = T5Tokenizer.from_pretrained(model_name)
     config = T5Config.from_pretrained(model_name)
-    config.dropout_rate = dropout_rate   
+    config.dropout_rate = dropout_rate
     if train_args.float16:
         torch_dtype = torch.float16
     elif train_args.bf16:
         torch_dtype = torch.bfloat16
     else:
         torch_dtype = torch.float32
-    model = T5ForConditionalGeneration.from_pretrained(model_name, 
+    model = T5ForConditionalGeneration.from_pretrained(model_name,
                                                        torch_dtype=torch_dtype,
                                                        config=config)
 
-    prefix = ['a_','b_','c_','d_']
+    prefix = ['a_', 'b_', 'c_', 'd_']
 
     extra_tokens = []
     if code_book_num == 1:
@@ -117,64 +120,67 @@ if __name__ == '__main__':
         token_embeddings.weight.data[original_vocab_size:original_vocab_size + code_book_size * code_book_num] = rq_emb
         print('codebook_embedding added')
 
-
     if train_args.lora:
         lora_config = LoraConfig(
             r=8,
             lora_alpha=16,
-            modules_to_save=['embed_tokens','lm_head'],
+            modules_to_save=['embed_tokens', 'lm_head'],
             lora_dropout=0.1,
             bias="none",
             inference_mode=False,
-            task_type=TaskType.CAUSAL_LM,
+            task_type=TaskType.SEQ_2_SEQ_LM,
         )
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
 
-
-    reporter =  ['wandb'] if local_rank == 0 else "none"
-    #reporter =  ['tensorboard'] if local_rank == 0 else "none"
+    reporter = ['wandb'] if local_rank == 0 else "none"
+    # reporter = "none"
     training_args = TrainingArguments(
         output_dir=output_dir_name,
 
-        num_train_epochs=train_epoch,         
-        per_device_train_batch_size=train_batch_size, 
-        per_device_eval_batch_size=train_batch_size, 
+        num_train_epochs=train_epoch,
+        per_device_train_batch_size=train_batch_size,
+        per_device_eval_batch_size=train_batch_size,
         dataloader_num_workers=10,
-                
+
         # optim='adafactor',
         warmup_ratio=train_args.warmup_ratio,
         learning_rate=learning_rate,
-        # weight_decay=0.01,   
-                   
+        # weight_decay=0.01,
+
         logging_dir=output_dir_name+'/logs/',
         report_to=reporter,
         evaluation_strategy=train_args.eval_strategy,
-        #eval_steps=1000,
-        
+        # eval_steps=1000,
+
         save_strategy=train_args.save_strategy,
-        #save_steps=1000,
+        # save_steps=1000,
         save_total_limit=train_args.save_total_limit,
-        #load_best_model_at_end=True,
+        # load_best_model_at_end=True,
 
         logging_steps=train_args.logging_steps,
 
         deepspeed=train_args.deepseed_config,
         gradient_accumulation_steps=train_args.gradient_accumulation_steps,
-        
+
+        # load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        save_only_model=True,
+
         fp16=train_args.float16,
         bf16=train_args.bf16,
     )
     model.config.use_cache = False
 
-    train_dataset = T5Dataset(tokenizer, train_source_file, train_target_file, max_source_len=source_length, max_target_len=target_length, 
+    train_dataset = T5Dataset(tokenizer, train_source_file, train_target_file, max_source_len=source_length, max_target_len=target_length,
                               add_prefix=train_args.add_prefix)
-    val_dataset = T5Dataset(tokenizer, val_source_file, val_target_file, max_source_len=source_length, max_target_len=target_length, 
+    val_dataset = T5Dataset(tokenizer, val_source_file, val_target_file, max_source_len=source_length, max_target_len=target_length,
                             add_prefix=train_args.add_prefix)
-    test_dataset = T5Dataset(tokenizer, test_source_file, test_target_file, max_source_len=source_length, max_target_len=target_length, 
+    test_dataset = T5Dataset(tokenizer, test_source_file, test_target_file, max_source_len=source_length, max_target_len=target_length,
                              add_prefix=train_args.add_prefix)
-    sub_train_dataset = T5Dataset(tokenizer, train_source_file, train_target_file, max_source_len=source_length, max_target_len=target_length, 
-                                  add_prefix=train_args.add_prefix,subset_size=1000)
+    sub_train_dataset = T5Dataset(tokenizer, train_source_file, train_target_file, max_source_len=source_length, max_target_len=target_length,
+                                  add_prefix=train_args.add_prefix, subset_size=1000)
+
 
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer, padding='max_length', max_length=source_length)
 
@@ -189,8 +195,8 @@ if __name__ == '__main__':
         logger.info('test dataset size: '+str(len(test_dataset)))
         logger.info('transfomers training_args: '+str(training_args))
 
-    trainer = TrainerwithTemperature(
-        temperature=train_args.temperature,
+    trainer = Trainer(
+        # temperature=train_args.temperature,
 
         model=model,
         args=training_args,
@@ -199,12 +205,12 @@ if __name__ == '__main__':
         tokenizer=tokenizer,
         data_collator=data_collator,
         callbacks=[QueryEvalCallback(local_rank=local_rank,
-                                     test_dataset_1=sub_train_dataset, 
-                                     test_dataset_2=test_dataset, 
+                                     test_dataset_1=sub_train_dataset,
+                                     test_dataset_2=test_dataset,
                                      tgt_file=test_target_file,
-                                     logger=logger, 
-                                     batch_size=train_batch_size, 
-                                     collator=data_collator, 
+                                     logger=logger,
+                                     batch_size=64,
+                                     collator=data_collator,
                                      tokenizer=tokenizer,
                                      wandb=wandb,
                                      log_freq=log_freq,
@@ -212,4 +218,3 @@ if __name__ == '__main__':
     )
 
     trainer.train()
-

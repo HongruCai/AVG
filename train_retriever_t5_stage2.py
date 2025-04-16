@@ -61,14 +61,14 @@ if __name__ == '__main__':
     source_length = train_args.source_length
     target_length = train_args.target_length
     gen_len = train_args.gen_len
-    ltr = 'ltr' + str(train_args.temperature) + '-' + str(train_args.ltr_loss_factor)
+    ltr = 'mltr' + str(train_args.temperature) + '-' + str(train_args.ltr_loss_factor)
     output_dir = model_name.split('/')[-1]+'_'+str(data_path.split('/')[-1])+'_ep'+str(train_epoch)+'_lr'+str(learning_rate)+'_bch'+str(train_batch_size)+'_'+ ltr
 
     local_rank = int(os.environ.get("LOCAL_RANK") or 0)
 
     if local_rank == 0:
         wandb.login()
-        wandb.init(project='LTR', name=output_dir)
+        wandb.init(project='AVG_retriever', name=output_dir)
     
     output_dir_name = train_args.output_dir + '/' + train_args.model_name_path.split('/')[-3] + '/' + output_dir
 

@@ -1,4 +1,4 @@
-python test_llama.py \
+python tools/test_retriever_llama.py \
     --model_path output/flickr \
     --data_path data/flickr \
     --device cuda:0 \

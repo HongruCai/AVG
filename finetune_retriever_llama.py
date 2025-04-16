@@ -28,7 +28,7 @@ from utils import LLaMaDataset, TrainerwithTemperature, LlaMaTrainerwithTemperat
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train T5 model with RQ-VAE codes")
+    parser = argparse.ArgumentParser(description="Train LLaMA model with RQ-VAE codes")
 
     parser.add_argument('--data_path', type=str, default='data/flickr/flickr_codes', help='data path')
     parser.add_argument('--output_dir', type=str, default='output/flickr', help='output directory')
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     if local_rank == 0:
             wandb.login()
-            wandb.init(project='llama',name=output_dir)
+            wandb.init(project='AVG_retriever',name=output_dir)
     if ddp:
         device_map = {"": local_rank}
 
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
 
     reporter =  ['wandb'] if local_rank == 0 else "none"
-    #reporter =  'none'
+    reporter =  'none'
     training_args = TrainingArguments(
         output_dir=output_dir_name,
 
