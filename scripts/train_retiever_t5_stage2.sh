@@ -1,7 +1,7 @@
 deepspeed --master_port=29511 train_retriever_t5_stage2.py \
-    --data_path data/flickr/flickr_ft \
+    --data_path data/flickr/flickr \
     --output_dir output/retriever/flickr_s2 \
-    --model_name_path output/flickr/t5-base/20250412_2145_flickr_ft_c1024_ep100_lr0.001_bch128_embadded/checkpoint-11134 \
+    --model_name_path output/flickr/t5-base/xx/checkpoint-xx \
     --train_epoch 5 \
     --learning_rate 1e-4 \
     --train_batch_size 8 \

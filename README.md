@@ -10,7 +10,7 @@ This project implements AVG, a new approach for text-to-image retrieval that ref
 
 The code is tested on Python 3.9.18, PyTorch 1.13.1 and CUDA 11.7. 
 
-The required packages can be installed using the following command:
+You can create a conda environment with the required dependencies using the provided `environment.yml` file.
 
 ```bash 
 conda env create -f environment.yml
@@ -34,70 +34,106 @@ bash scripts/prepare_emb.sh
 
 ![x](https://hongrucai.github.io/images/avg.png)
 
-### Tokenizer
-To train the Tokenizer (RQ-VAE) model, run the following command:
+###  🔵 Tokenizer (RQ-VAE)
+
+#### Step 1: Train the Tokenizer (RQ-VAE)
 
 ```bash
 cd RQ-VAE
 bash scripts/train_rqvae.sh
 ```
 
-Then the model will be saved in the `RQ-VAE/output` directory.
+The trained model will be saved in the `RQ-VAE/output` directory.
 
-Use the following command to generate the "Voken":
+#### Step 2: Generate Voken Codes (Discrete Image Representations)
 
 ```bash
 bash scripts/generate_codes.sh
 ```
-### Retriever
 
-Use the codes genertaed to prepare the data for the Retriever (LLM) model:
+This script encodes images into discrete token sequences, which will be used in downstream Retriever and Reranker stages.
+
+
+### 🟡 Retriever (LLM)
+
+#### Step 3: Prepare Retriever Training Data
+
+Use the previously generated voken codes to construct the training data for the retriever:
 
 ```bash
 cd ..
 bash scripts/prepare_retriever_dataset.sh
 ```
-Train the Retriever:
 
-Stage 1: Generative training
+#### Step 4: Train the Retriever
+
+🔹 Stage 1: Generative Training (T5 or LLaMA)
+
+To train a T5-based retriever:
+
 ```bash
-bash scripts/train_retriever_t5.sh # the recall will be automatically recorded.
-# or
+bash scripts/train_retriever_t5.sh
+# Recall metrics will be automatically recorded in the log file and wandb.
+```
+
+To train a LLaMA-based retriever:
+
+```bash
 bash scripts/finetune_retriever_llama.sh
 ```
-Specially, the LLaMa model will need to be tested separately.
+
+For testing the LLaMA-based retriever (requires separate evaluation):
+
 ```bash
 bash scripts/test_retriever_llama.sh
 ```
-Stage 2: Discriminative training, load the checkpoint from the stage 1 and run the following command:
+
+🔹 Stage 2: Discriminative Fine-Tuning (Optional)
+
+Load the checkpoint from Stage 1 and perform discriminative training:
 
 ```bash
-bash scripts/train_retriever_t5_stage2.sh # he hyper-parameters are sensitive, you may need to tune them.
+bash scripts/train_retriever_t5_stage2.sh
+# Note: Hyperparameters are sensitive and may require tuning.
 ```
 
-### Reranker
-We use the SEED-LLaMA model as the reranker. By adding a mlp layer, we can train the model with our retrieved results.
 
-First, we need to prepare the data for the reranker.  and convert our image vokens to SEED-LLaMA ids.
+### 🟢 Reranker (SEED-LLaMA)
+
+We use the [SEED-LLaMA](https://github.com/AILab-CVC/SEED) model as the reranker. A lightweight MLP head is added for scoring candidate responses retrieved by the retriever.
+
+#### Step 5: Prepare Reranker Data
+
+First, generate retrieval results for training set and test set:
+
 ```bash
-# We need to generate the predictions from the retriever for training and test sets. 
-bash scripts/prepare_reranker_dataset.sh 
-# Then we need to convert the vokens to SEED-LLaMA ids.
+bash scripts/prepare_reranker_dataset.sh
+```
+
+Then, convert the voken codes to SEED-LLaMA token IDs:
+
+```bash
 bash scripts/convert_voken_to_seed.sh
 ```
 
-Then we can train the reranker with the following command:
+#### Step 6: Train the Reranker
+
 ```bash
 bash scripts/finetune_reranker_llama.sh
 ```
-After training, we can test the reranker with the following command:
+
+#### Step 7: Evaluate the Reranker
+
 ```bash
 bash scripts/test_reranker_llama.sh
 ```
 
-### Note
-- For different datasets, you may need to adjust the hyper-parameters related to data path in the scripts.
-- The other hyper-parameters are set to the default values, you may need to tune them for your own dataset or explore different settings.
+### 🟥 Note
+- Make sure to update all dataset-related paths in the training and evaluation scripts according to your local directory structure.
+
+- The default hyperparameters (e.g., learning rate, batch size, number of epochs) are configured for a reference dataset. You must tune them for your own dataset.
+
+- Some scripts assume a fixed number of retrieval candidates (e.g., top-50 or top-100). Adjust top_k accordingly based on your retriever output.
 
 
 ## 📚 Citation
@@ -118,7 +154,7 @@ If you find this code useful, please consider citing our paper:
 
 This project is licensed under the [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) License.
 
-Part of the code is based on the following repo: [SEED-LLaMA](https://github.com/AILab-CVC/SEED). We continue to honor and adhere to its licensing terms for the portions derived from it.
+Part of the code (`./models`) is based on the [SEED-LLaMA](https://github.com/AILab-CVC/SEED). We continue to honor and adhere to its licensing terms.
 
 
 ## 📬 Contact

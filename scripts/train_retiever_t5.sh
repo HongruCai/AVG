@@ -2,7 +2,7 @@
 # export NCCL_P2P_LEVEL=NVL 
 
 deepspeed --master_port=29999 train_retriever_t5.py \
-    --data_path data/flickr/flickr_ft \
+    --data_path data/flickr/flickr \
     --output_dir output/retriever/flickr \
     --model_name t5-base \
     --train_epoch 100 \
