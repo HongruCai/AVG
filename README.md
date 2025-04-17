@@ -16,9 +16,10 @@ You can create a conda environment with the required dependencies using the prov
 conda env create -f environment.yml
 conda activate avg
 ```
+
 ## 🧾 Data
 
-1. The dataset used in the paper is the [COCO 2014](http://cocodataset.org/#download) dataset and the [Flickr30k](https://www.kaggle.com/hsankesara/flickr-image-dataset) dataset. The raw images should be downloaded and placed in the `RQ-VAE/data` directory.
+1. The dataset used in the paper is the [COCO 2014](http://cocodataset.org/#download) dataset and the [Flickr30k](https://www.kaggle.com/hsankesara/flickr-image-dataset) dataset. The raw images should be downloaded and placed in the `RQ-VAE/data` directory, along with captions. The captions files we used can be found [here](https://drive.google.com/drive/folders/1Q1tYXl4pNT7shWxYA5o_-5B-oPerZqr9?usp=sharing).
 
 2. Run the following command to preprocess the data to generate the image features and text features:
 
@@ -27,10 +28,10 @@ cd RQ-VAE
 bash scripts/prepare_emb.sh
 ```
 
-3. You can also use the simple tools/generate_psudo_query.py script to generate pseudo queries to augment the dataset. The psudo queries we used can be found [here]().
+3. You can also use the simple tools/generate_psudo_query.py script to generate pseudo queries to augment the dataset. The psudo queries we used can be found [here](https://drive.google.com/drive/folders/1Q1tYXl4pNT7shWxYA5o_-5B-oPerZqr9?usp=sharing).
 
 
-## 📈 Training
+## 📈 AVG
 
 ![x](https://hongrucai.github.io/images/avg.png)
 
