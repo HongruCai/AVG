@@ -144,7 +144,7 @@ If you find this code useful, please consider citing our paper:
 ```bibtex
 @inproceedings{li2025avg,
   title={Revolutionizing Text-to-Image Retrieval as Autoregressive Token-to-Voken Generation},
-  author={Yongqi Li, Hongru Cai, Wenjie Wang, Leigang Qu, Yinwei Wei, Wenjie Li, Tat-Seng Chua},
+  author={Yongqi Li and Hongru Cai and Wenjie Wang and Leigang Qu and Yinwei Wei and Wenjie Li and Liqiang Nie and Tat-Seng Chua},
   booktitle={Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval},
   series={SIGIR '25},
   year={2025}
